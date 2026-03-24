@@ -5556,7 +5556,7 @@
             const verEl = document.getElementById('versionCounter');
             if (verEl) verEl.textContent = `v${DB._version || 0}`;
             setTimeout(() => {
-                try { initMonitorSystem(); } catch(e) {}
+                try { initMonitorSystem(); } catch(e) { console.warn('Monitor sistemi başlatılamadı:', e); }
             }, 1000);
 
             // Uygulama ayarlarını yükle
@@ -6551,7 +6551,7 @@
             }
         }
 
-        function tabMoreToggle() {            document.getElementById('tabMoreMenu').classList.toggle('open');
+        function tabMoreToggle() {            document.getElementById('tabMoreMenu')?.classList.toggle('open');
         }
         function tabMoreClose() {
             document.getElementById('tabMoreMenu')?.classList.remove('open');
@@ -6667,7 +6667,9 @@
 
         // ==================== MODALS ====================
         function openModal(modalId) {
-            document.getElementById(modalId).classList.add('active');
+            const _modalEl = document.getElementById(modalId);
+            if (!_modalEl) { console.warn('openModal: element bulunamadı:', modalId); return; }
+            _modalEl.classList.add('active');
             
             if (modalId === 'ruleModal' || modalId === 'matchModal') {
                 populateCariDropdown('ruleCari');
@@ -6698,7 +6700,9 @@
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('active');
+            const _modalEl = document.getElementById(modalId);
+            if (!_modalEl) { console.warn('closeModal: element bulunamadı:', modalId); return; }
+            _modalEl.classList.remove('active');
             const form = document.querySelector(`#${modalId} form`);
             if (form) form.reset();
             if (modalId === 'orderModal') {
@@ -6799,10 +6803,10 @@
                 name: document.getElementById('productName').value,
                 category: document.getElementById('productCategory').value,
                 brand: document.getElementById('productBrand').value,
-                cost: parseFloat(document.getElementById('productCost').value),
-                price: parseFloat(document.getElementById('productPrice').value),
-                stock: parseInt(document.getElementById('productStock').value),
-                minStock: parseInt(document.getElementById('productMinStock').value) || 5,
+                cost: parseFloat(document.getElementById('productCost')?.value) || 0,
+                price: parseFloat(document.getElementById('productPrice')?.value) || 0,
+                stock: parseInt(document.getElementById('productStock')?.value) || 0,
+                minStock: parseInt(document.getElementById('productMinStock')?.value) || 5,
                 barcode: document.getElementById('productBarcode').value,
                 description: document.getElementById('productDescription').value,
                 createdAt: existing?.createdAt || nowIso,
@@ -8174,8 +8178,10 @@
                     pushUndo({
                         label: 'Sipariş düzenlendi',
                         undo: () => {
+                            if (!snapshot) return;
                             const idx = DB.orders.findIndex(o => o.id === snapshot.id);
                             if (idx !== -1) DB.orders[idx] = snapshot;
+                            else DB.orders.push(snapshot);
                         }
                     });
                     order.supplierId = document.getElementById('orderSupplier').value;
@@ -9515,12 +9521,16 @@
                 const remaining = grandTotal - down;
                 const monthly = remaining / count;
                 updatedSale.installments = [];
+                let paidSoFar = 0;
                 for (let i = 0; i < count; i++) {
                     const dueDate = new Date(createdAt);
                     dueDate.setMonth(dueDate.getMonth() + i + 1);
+                    const isLast = (i === count - 1);
+                    const amount = isLast ? _round2(remaining - paidSoFar) : _round2(monthly);
+                    paidSoFar += amount;
                     updatedSale.installments.push({
                         no: i + 1,
-                        amount: _round2(monthly),
+                        amount,
                         dueDate: dueDate.toISOString(),
                         paid: false
                     });
@@ -10018,12 +10028,16 @@
                 const monthly = remaining / count;
 
                 sale.installments = [];
+                let _paidSoFar = 0;
                 for (let i = 0; i < count; i++) {
                     const dueDate = new Date(now);
                     dueDate.setMonth(dueDate.getMonth() + i + 1);
+                    const _isLast = (i === count - 1);
+                    const _amount = _isLast ? Math.round((remaining - _paidSoFar) * 100) / 100 : Math.round(monthly * 100) / 100;
+                    _paidSoFar += _amount;
                     sale.installments.push({
                         no: i + 1,
-                        amount: Math.round(monthly * 100) / 100,
+                        amount: _amount,
                         dueDate: dueDate.toISOString(),
                         paid: false
                     });
