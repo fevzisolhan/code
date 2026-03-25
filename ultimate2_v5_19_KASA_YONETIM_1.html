@@ -7522,7 +7522,7 @@
             }
 
             const dupCount = dupIds.size;
-            const dupBadge = dupCount > 0 ? `<span style="background:var(--danger);color:#fff;border-radius:20px;padding:2px 8px;font-size:0.7rem;font-weight:700;margin-left:6px;">${dupCount/2|0} olası mükerrer</span>` : '';
+            const dupBadge = dupCount > 0 ? `<span style="background:var(--danger);color:#fff;border-radius:20px;padding:2px 8px;font-size:0.7rem;font-weight:700;margin-left:6px;">${dupCount} olası mükerrer</span>` : '';
             const suspectBadge = suspectCount > 0 ? `<span style="background:#f59e0b;color:#000;border-radius:20px;padding:2px 8px;font-size:0.7rem;font-weight:700;margin-left:6px;">⚠️ ${suspectCount} şüpheli eşleşme</span>` : '';
 
             document.getElementById('cariDetailContent').innerHTML = `
@@ -7627,7 +7627,7 @@
                 const yeniDesc = document.getElementById('_editHareketDesc').value.trim();
                 const yeniTarih = document.getElementById('_editHareketTarih').value;
                 
-                const fark = yeniTutar - k.amount;
+                const fark = yeniTutar - (Number(k.amount) || 0);
                 k.amount = yeniTutar;
                 if (yeniDesc) k.description = yeniDesc;
                 if (yeniTarih) k.createdAt = new Date(yeniTarih).toISOString();
@@ -9256,14 +9256,14 @@
             const saleIds = new Set();
             // Açık borçlu satışları topla (FIFO güncelleme için)
             const acikSatislar = [];
-            DB.sales.filter(s => s.customerId === cariId && s.status !== 'iade').forEach(s => {
+            (DB.sales || []).filter(s => s.customerId === cariId && s.status !== 'iade').forEach(s => {
                 saleIds.add(s.id);
                 if (s.payment === 'vadeli') {
                     hesap += Number(s.total || 0);
                     acikSatislar.push(s);
                 } else if (s.payment === 'kismi') {
                     // FIX: Stale kalanBorc yerine gerçek hesap: total - satışa bağlı kasa toplamı
-                    const linkedTahsilat = DB.kasa
+                    const linkedTahsilat = (DB.kasa || [])
                         .filter(k => k.relatedId === s.id && k.type === 'gelir')
                         .reduce((sum, k) => sum + Number(k.amount || 0), 0);
                     const gercekKalan = Math.max(0, Number(s.total || 0) - linkedTahsilat);
@@ -9281,14 +9281,14 @@
             });
             
             // ── 2) Tedarikçi sipariş borçları (kalan borç) ──
-            const linkedSupplierIds = DB.suppliers
+            const linkedSupplierIds = (DB.suppliers || [])
                 .filter(s => s.cariId === cariId)
                 .map(s => s.id);
             
             const orderIds = new Set();
             if (linkedSupplierIds.length > 0) {
-                DB.orders.filter(o => 
-                    linkedSupplierIds.includes(o.supplierId) && 
+                (DB.orders || []).filter(o =>
+                    linkedSupplierIds.includes(o.supplierId) &&
                     o.status !== 'iptal'
                 ).forEach(o => {
                     const remaining = typeof o.remainingAmount !== 'undefined' 
@@ -9977,7 +9977,7 @@
                     }
                 });
                 // FIX: Tahsilat toplam satış tutarını aşamaz
-                if (toplamTahsilat > grandTotal) {
+                if (_round2(toplamTahsilat) > _round2(grandTotal)) {
                     showToast(`Tahsilat (${formatMoney(toplamTahsilat)}) satış tutarını (${formatMoney(grandTotal)}) aşamaz!`, 'error');
                     return;
                 }
@@ -11828,10 +11828,17 @@
                 if (!devam) return;
             }
 
+            const cari = DB.cari.find(c => c.id === transaction.matchedCariId);
+            if (!cari) {
+                showToast('Eşlenen cari bulunamadı, lütfen yeniden eşleştirin!', 'error');
+                transaction.matchedCariId = null;
+                renderBankTransactions();
+                return;
+            }
+
             transaction.status = 'confirmed';
 
-            const cari = DB.cari.find(c => c.id === transaction.matchedCariId);
-            const isOrtak = cari && cari.type === 'ortak';
+            const isOrtak = cari.type === 'ortak';
             const kasaId = genId();
             DB.kasa.push({
                 id: kasaId,
